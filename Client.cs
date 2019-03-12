@@ -7,112 +7,150 @@ using System.Net.Sockets;
 using System.Net;
 using System.Threading;
 using System.IO;
-using System.Net.NetworkInformation;
 
-namespace Chatting_application
+namespace Chatting_App
 {
-    class Server
+    class Client
     {
-        public static TcpListener tcpListener;
-        public static List<TcpClient> clients;
+        public static string memberName;
+        
+        public static TcpClient clientTcp;
 
         static void Main(string[] args)
         {
-            Console.WriteLine("");
-            Console.WriteLine("");
+            AppDomain.CurrentDomain.ProcessExit += new EventHandler(CurrentDomain_ProcessExit);
+            string adress;
+            bool availableName = false;
 
+            Console.WriteLine("Welcome, please enter an IP adress or domain name to connect.");
+
+            string serverIP = Console.ReadLine();
+            adress = serverIP;
+            
+            Console.WriteLine("Please enter your name before we connect you to the chat service.");
+            
+            while (!availableName)
+            {
+                string name = Console.ReadLine();
+                if (!isAlphanumbeic(name))
+                {
+                    Console.WriteLine("Your name must be alphanumeric.");
+                    continue;
+                }
+
+                if (name.Length < 4)
+                {
+                    Console.WriteLine("Your name is too short.");
+                    continue;
+                }
+                if (name.Length > 11)
+                {
+                    Console.WriteLine("Your name is too long!");
+                    continue;
+                }
+
+                availableName = true;
+                memberName = name;
+            }
+
+            NetworkStream ns = null;
+            
             try
             {
-                clients = new List<TcpClient>();
+                clientTcp = new TcpClient(serverIP, 1401);
+                ns = clientTcp.GetStream();
 
-                tcpListener = new TcpListener(IPAddress.Any, 1401);
+                Thread t = new Thread(() => ReadMessages(ns));
+                t.Start();
 
-                tcpListener.Start();
+                Console.Clear();
+                Console.WriteLine("");
+                Console.WriteLine("");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("You have successfully connected to the server as '" + memberName + "'. Enjoy!");
+                Console.ForegroundColor = ConsoleColor.White;
             }
             catch
             {
+                Console.WriteLine("");
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("There was a problem with the server, you might be trying to open multiple servers which is not possible.");
-                Console.WriteLine("Press 'ENTER' to exit.");
+                Console.WriteLine("Could not connect to the host!");
+                Console.WriteLine("Press 'ENTER' to leave.");
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.ReadLine();
                 Environment.Exit(0);
-
             }
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("Connection established with the port '1401'.");
-            Console.WriteLine("If you are having trouble with the connection, check your port '1401'.");
-            Console.WriteLine("");
-
-            Console.ForegroundColor = ConsoleColor.White;
             while (true)
             {
-                TcpClient client = null;
+                string message = Console.ReadLine();
 
-                client = tcpListener.AcceptTcpClient();
-
-                clients.Add(client);
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("A new connection has established.");
-                Console.ForegroundColor = ConsoleColor.White;
-                Thread t = new Thread(() => Listen(client));
-                t.Start();
-            }
-
-        }
-
-        public static void Listen(object obj)
-        {
-            bool shouldStop = false;
-            TcpClient tcpClient = (TcpClient)obj;
-            StreamReader sReader = new StreamReader(tcpClient.GetStream());
-
-            while (!shouldStop)
-            {
-                try
+                if(message.Length == 0)
                 {
-                    string memberName = sReader.ReadLine();
-                    string message = sReader.ReadLine();
-                    WriteAll(memberName,message);
+                    Console.SetCursorPosition(0, Console.CursorTop - 1);
+                    continue;
                 }
-                catch
+                if(message.Length > 40)
                 {
-                    shouldStop = true;
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("Connection to a person is lost.");
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("Your message is too long.");
                     Console.ForegroundColor = ConsoleColor.White;
+                    continue;
                 }
+
+                Console.SetCursorPosition(0, Console.CursorTop - 2);
+                Console.WriteLine("");
+
+                SendMessage(message, ns);
+            }
+
+        }
+        public static bool isAlphanumbeic(string str)
+        {
+            for (int i = 0; i < str.Length; i++)
+            {
+                if(!char.IsLetterOrDigit(str[i]))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public static void SendMessage(string message, NetworkStream ns)
+        {
+            StreamWriter streamWriter = new StreamWriter(ns);
+            streamWriter.WriteLine(memberName);
+            streamWriter.WriteLine(message);
+            streamWriter.Flush();
+        }
+
+        public static void ReadMessages(NetworkStream ns)
+        {
+            while(true)
+            {
+
+                StreamReader sw = new StreamReader(ns);
+
+                string name = sw.ReadLine();
+                string message = sw.ReadLine();
+                 
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Write(name + ": ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.Write(message);
+                Console.WriteLine("");
+
             }
         }
 
-
-
-        public static void WriteAll(string name, string message)
+        static void CurrentDomain_ProcessExit(object sender, EventArgs e)
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write(name + ": ");
-            Console.ForegroundColor = ConsoleColor.White;
-            Console.Write(message);
-            Console.WriteLine("");
-
-            foreach (var client in clients.ToArray())
+            try
             {
-                try
-                {
-                    NetworkStream ns = client.GetStream();
-
-                    StreamWriter sw = new StreamWriter(ns);
-                    sw.WriteLine(name);
-                    sw.WriteLine(message);
-                    sw.Flush();
-
-                }
-                catch
-                {
-                    clients.Remove(client);
-                };
+                clientTcp.Close();
             }
+            catch { }
         }
     }
 }
