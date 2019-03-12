@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,15 +9,18 @@ using System.Threading;
 using System.IO;
 using System.Net.NetworkInformation;
 
-namespace Chat_server
+namespace Chatting_server
 {
-    class Program
+    class Server
     {
         public static TcpListener tcpListener;
         public static List<TcpClient> clients;
 
         static void Main(string[] args)
         {
+            Console.WriteLine("");
+            Console.WriteLine("");
+
             try
             {
                 clients = new List<TcpClient>();
@@ -26,12 +29,15 @@ namespace Chat_server
 
                 tcpListener.Start();
             }
-            catch(Exception ex)
+            catch
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("There was a problem with server.");
+                Console.WriteLine("There was a problem with the server, you might be trying to open multiple servers which is not possible.");
+                Console.WriteLine("Press 'ENTER' to exit.");
                 Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine(ex);
+                Console.ReadLine();
+                Environment.Exit(0);
+
             }
 
             Console.ForegroundColor = ConsoleColor.Green;
@@ -42,7 +48,10 @@ namespace Chat_server
             Console.ForegroundColor = ConsoleColor.White;
             while (true)
             {
-                TcpClient client = tcpListener.AcceptTcpClient();
+                TcpClient client = null;
+
+                client = tcpListener.AcceptTcpClient();
+
                 clients.Add(client);
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine("A new connection has established.");
@@ -59,28 +68,33 @@ namespace Chat_server
             TcpClient tcpClient = (TcpClient)obj;
             StreamReader sReader = new StreamReader(tcpClient.GetStream());
 
-            while(!shouldStop)
+            while (!shouldStop)
             {
                 try
                 {
+                    string memberName = sReader.ReadLine();
                     string message = sReader.ReadLine();
-                    WriteAll(message);
+                    WriteAll(memberName,message);
                 }
                 catch
                 {
                     shouldStop = true;
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.WriteLine("Connection to a person is lost.");
-                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.ForegroundColor = ConsoleColor.White;
                 }
             }
         }
 
 
 
-        public static void WriteAll(string str)
+        public static void WriteAll(string name, string message)
         {
-            Console.WriteLine(str);
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write(name + ": ");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write(message);
+            Console.WriteLine("");
 
             foreach (var client in clients.ToArray())
             {
@@ -89,7 +103,8 @@ namespace Chat_server
                     NetworkStream ns = client.GetStream();
 
                     StreamWriter sw = new StreamWriter(ns);
-                    sw.WriteLine(str);
+                    sw.WriteLine(name);
+                    sw.WriteLine(message);
                     sw.Flush();
 
                 }
@@ -98,13 +113,6 @@ namespace Chat_server
                     clients.Remove(client);
                 };
             }
-           
         }
-
-        public static void RemoveDisconnected()
-        {
-
-        }
-
     }
 }
